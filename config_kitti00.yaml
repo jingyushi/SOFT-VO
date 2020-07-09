@@ -1,0 +1,34 @@
+%YAML:1.0
+
+#--------------------------------------------------------------------------------------------
+# Camera Parameters. Adjust them!
+#--------------------------------------------------------------------------------------------
+
+# Camera calibration and distortion parameters (OpenCV) 
+Camera.fx: 718.8560
+Camera.fy: 718.8560
+Camera.cx: 607.1928
+Camera.cy: 185.2157
+
+# stereo baseline times fx
+Camera.bf: -386.1448
+
+
+# Close/Far threshold. Baseline times.
+ThDepth: 35
+
+#*******************************Soft_SLAM parameters
+nmsRange: 15
+
+#used for matching in bins
+binSize: 50
+radiusMatch: 50
+matchDispTolerance: 2
+nccWindow:  25
+nccTolerance:  0.90
+patternDiffTol: 200
+
+#used for looping gate in circular matching
+dist_tol:  100
+
+

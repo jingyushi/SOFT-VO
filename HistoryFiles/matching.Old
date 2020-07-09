@@ -1,0 +1,27 @@
+
+cv::Mat GeneratePatch(SoftPoint p1, cv::Mat img1)
+{
+    cv::Rect rec1(cv::Point2f(p1.x - 2, p1.y - 2), cv::Point2f(p1.x + 3, p1.y + 3));
+    // cv::Mat template1 = img1(rec1);
+    // cout << template1 << endl;
+    // cout << (int)img1.at<uchar>(p1.y - 2, p1.x) << endl;
+    // cout << (float)(int)img1.at<uchar>(p1.y - 2, p1.x) << endl;
+
+    cv::Mat templ = (cv::Mat_<float>(1, 15) << (float)(int)img1.at<uchar>(p1.y - 2, p1.x),
+                     (float)(int)img1.at<uchar>(p1.y - 1, p1.x - 2),
+                     (float)(int)img1.at<uchar>(p1.y - 1, p1.x - 1),
+                     (float)(int)img1.at<uchar>(p1.y - 1, p1.x),
+                     (float)(int)img1.at<uchar>(p1.y - 1, p1.x + 1),
+                     (float)(int)img1.at<uchar>(p1.y - 1, p1.x + 2),
+                     (float)(int)img1.at<uchar>(p1.y, p1.x - 1),
+                     (float)(int)img1.at<uchar>(p1.y, p1.x),
+                     (float)(int)img1.at<uchar>(p1.y, p1.x + 1),
+                     (float)(int)img1.at<uchar>(p1.y + 1, p1.x - 2),
+                     (float)(int)img1.at<uchar>(p1.y, p1.x - 1),
+                     (float)(int)img1.at<uchar>(p1.y, p1.x),
+                     (float)(int)img1.at<uchar>(p1.y, p1.x + 1),
+                     (float)(int)img1.at<uchar>(p1.y, p1.x + 2),
+                     (float)(int)img1.at<uchar>(p1.y + 2, p1.x));
+    // ShortImgShow(img1);
+    return templ;
+}

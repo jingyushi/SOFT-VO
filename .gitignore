@@ -1,0 +1,8 @@
+# Ignore files and folders
+build
+.vscode
+cmake-build-debug
+
+# Ignore all hidden folders and files, but not .gitignore
+.*
+!/.gitignore

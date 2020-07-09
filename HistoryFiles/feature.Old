@@ -1,0 +1,232 @@
+
+// ***********************************The implemented functions that work not very well are left there
+
+/**
+ * Run NMS to remove repeated points. This is a slow version, and requires special input format. It is not used now.
+ * @param: points: the points collection with repeated points
+ * @param: threshold: points within this pixel value will be suppressed
+ **/
+vector<cv::Point2f> NMS(cv::Mat &points, int threshold)
+{
+    int count = points.total();
+
+    vector<cv::Point> repeatedPoints(count);
+    for (int i = 0; i < count; i++)
+        repeatedPoints[i] = (points.at<cv::Point>(i));
+
+    vector<cv::Point2f> cleanPoints;
+
+    // int ii = 0;
+    while (count > 0)
+    {
+        cleanPoints.push_back(repeatedPoints.back());
+
+        for (int i = 0; i < static_cast<int>(repeatedPoints.size()); i++)
+        {
+            if ((repeatedPoints[i].x - cleanPoints.back().x) * (repeatedPoints[i].x - cleanPoints.back().x) +
+                    (repeatedPoints[i].y - cleanPoints.back().y) * (repeatedPoints[i].y - cleanPoints.back().y) <
+                threshold * threshold)
+            {
+                // cout << "Before erase:" << repeatedPoints[i] << endl;
+                repeatedPoints.erase(repeatedPoints.begin() + i);
+                count--;
+                i--;
+                // cout << "After erase:" << repeatedPoints[i] << endl;
+            }
+        }
+    }
+
+    // cout << cleanPoints.size() << endl;
+
+    return cleanPoints;
+}
+
+/**
+ * This function is the old function, and is not used in the current project
+ * The input image is the left old one in the circular matching
+ * @param: img: input image to find features
+ * @param: range: the range of maximum and minimum values
+ **/
+vector<vector<cv::Point2f>> SearchFeatures(cv::Mat &img, double range)
+{
+
+    // int rows = img.rows;
+    // int cols = img.cols;
+
+    cv::Mat blobKernel = (cv::Mat_<double>(5, 5) << -1, -1, -1, -1, -1, -1, 1, 1, 1, -1, -1, 1, 8, 1, -1, -1, 1, 1, 1, -1, -1, -1, -1, -1, -1);
+    cv::Mat cornerKernel = (cv::Mat_<double>(5, 5) << -1, -1, 0, 1, 1, -1, -1, 0, 1, 1, 0, 0, 0, 0, 0, 1, 1, 0, -1, -1, 1, 1, 0, -1, -1);
+    blobKernel = blobKernel / 25.0;
+    cornerKernel = cornerKernel / 25.0;
+
+    vector<cv::Point> blobPointsMax;
+    vector<cv::Point> blobPointsMin;
+    vector<cv::Point> cornerPointsMax;
+    vector<cv::Point> cornerPointsMin;
+
+    cv::Mat blobImg;
+    cv::filter2D(img, blobImg, CV_32F, blobKernel); //Generally, don't use CV_64F
+    cv::cvtColor(blobImg, blobImg, CV_BGR2GRAY);
+    cv::Mat cornerImg;
+    cv::filter2D(img, cornerImg, CV_32F, cornerKernel);
+    cv::cvtColor(cornerImg, cornerImg, CV_BGR2GRAY);
+
+    //Initialize m
+    double minVal;
+    double maxVal;
+    cv::Point minLoc;
+    cv::Point maxLoc;
+    minMaxLoc(blobImg, &minVal, &maxVal, &minLoc, &maxLoc);
+    // cout << "min val : " << minVal << " Location: " << minLoc << endl;
+    // cout << "max val: " << maxVal << " Location: " << maxLoc << endl;
+
+    cv::Mat minBlobImg;
+    cv::Mat maxBlobImg;
+    inRange(blobImg, minVal, minVal + range, minBlobImg);
+    inRange(blobImg, maxVal - range, maxVal, maxBlobImg);
+
+    minMaxLoc(cornerImg, &minVal, &maxVal, &minLoc, &maxLoc);
+    // cout << "min val : " << minVal << " Location: " << minLoc << endl;
+    // cout << "max val: " << maxVal << " Location: " << maxLoc << endl;
+
+    cv::Mat minCornerImg;
+    cv::Mat maxCornerImg;
+    inRange(cornerImg, minVal, minVal + range, minCornerImg);
+    inRange(cornerImg, maxVal - range, maxVal, maxCornerImg);
+
+    // cv::Mat sobel = SobelResponse(img);
+
+    cv::Mat minBlobPoints;
+    cv::findNonZero(minBlobImg, minBlobPoints);
+    vector<cv::Point2f> cleanMinBlobPoints = NMS(minBlobPoints);
+
+    cv::Mat maxBlobPoints;
+    cv::findNonZero(maxBlobImg, maxBlobPoints);
+    vector<cv::Point2f> cleanMaxBlobPoints = NMS(maxBlobPoints);
+
+    cv::Mat minCornerPoints;
+    cv::findNonZero(minCornerImg, minCornerPoints);
+    vector<cv::Point2f> cleanMinCornerPoints = NMS(minCornerPoints);
+
+    cv::Mat maxCornerPoints;
+    cv::findNonZero(maxCornerImg, maxCornerPoints);
+    vector<cv::Point2f> cleanMaxCornerPoints = NMS(maxCornerPoints);
+
+    vector<vector<cv::Point2f>> featurePoints;
+    featurePoints.push_back(cleanMaxBlobPoints);
+    featurePoints.push_back(cleanMinBlobPoints);
+    featurePoints.push_back(cleanMaxCornerPoints);
+    featurePoints.push_back(cleanMinCornerPoints);
+
+    // cout << "the number of points in the four class: " << cleanMinBlobPoints.size() << " " << cleanMaxBlobPoints.size()
+    //      << " " << cleanMinCornerPoints.size() << " " << cleanMaxBlobPoints.size() << endl;
+
+    return featurePoints;
+}
+
+
+// /**
+//  * The paper uses a 11*11 pattern;
+//  * @brief The code transforms the location set of feature points to the set of softPoints object given a class of points
+//  **/
+vector<SoftPoint> GenerateInitialDescriptor(vector<cv::Point2f> points, cv::Mat img, int classID)
+{
+    if (img.type() != 0)
+        cv::cvtColor(img, img, CV_BGR2GRAY);
+    vector<SoftPoint> softPoints;
+    int rows = img.rows;
+    int cols = img.cols;
+    // cout << rows << " " << cols << endl;
+    softPoints.reserve(static_cast<int>(points.size()));
+    for (int index = 0; index < static_cast<int>(points.size()); index++)
+    {
+        MatchPattern pattern;
+        if (points[index].x < 5 || points[index].y < 5 || points[index].x > cols - 5 || points[index].y > rows - 5)
+        {
+            pattern = InitialPattern((int)img.at<uchar>(points[index].y, points[index].x));
+        }
+        else
+        {
+            pattern << (int)img.at<uchar>(points[index].y - 5, points[index].x - 1),
+                (int)img.at<uchar>(points[index].y - 5, points[index].x + 1),
+                (int)img.at<uchar>(points[index].y - 3, points[index].x - 5),
+                (int)img.at<uchar>(points[index].y - 3, points[index].x - 3),
+                (int)img.at<uchar>(points[index].y - 3, points[index].x - 1),
+                (int)img.at<uchar>(points[index].y - 3, points[index].x + 1),
+                (int)img.at<uchar>(points[index].y - 3, points[index].x + 3),
+                (int)img.at<uchar>(points[index].y - 3, points[index].x + 5),
+                (int)img.at<uchar>(points[index].y - 1, points[index].x - 3),
+                (int)img.at<uchar>(points[index].y - 1, points[index].x - 1),
+                (int)img.at<uchar>(points[index].y - 1, points[index].x + 1),
+                (int)img.at<uchar>(points[index].y - 1, points[index].x + 3),
+                (int)img.at<uchar>(points[index].y + 1, points[index].x - 3),
+                (int)img.at<uchar>(points[index].y + 1, points[index].x - 1),
+                (int)img.at<uchar>(points[index].y + 1, points[index].x + 1),
+                (int)img.at<uchar>(points[index].y + 1, points[index].x + 3),
+                (int)img.at<uchar>(points[index].y + 3, points[index].x - 5),
+                (int)img.at<uchar>(points[index].y + 3, points[index].x - 3),
+                (int)img.at<uchar>(points[index].y + 3, points[index].x - 1),
+                (int)img.at<uchar>(points[index].y + 3, points[index].x + 1),
+                (int)img.at<uchar>(points[index].y + 3, points[index].x + 3),
+                (int)img.at<uchar>(points[index].y - 3, points[index].x + 5),
+                (int)img.at<uchar>(points[index].y + 5, points[index].x - 1),
+                (int)img.at<uchar>(points[index].y + 5, points[index].x + 1);
+        }
+        SoftPoint pointTemp(points[index].x, points[index].y, (int)img.at<uchar>(points[index].y, points[index].x), classID, pattern);
+        softPoints.push_back(pointTemp);
+    }
+
+    return softPoints;
+}
+
+vector<vector<cv::Point2f>> FindFeatureLocation(cv::Mat &blobImg, cv::Mat &cornerImg, double range, string type)
+{
+
+    //Initialize m
+    double minVal;
+    double maxVal;
+    cv::Point minLoc;
+    cv::Point maxLoc;
+    minMaxLoc(blobImg, &minVal, &maxVal, &minLoc, &maxLoc);
+    // cout << "min val : " << minVal << " Location: " << minLoc << endl;
+    // cout << "max val: " << maxVal << " Location: " << maxLoc << endl;
+
+    cv::Mat minBlobImg;
+    cv::Mat maxBlobImg;
+    inRange(blobImg, minVal, minVal + range, minBlobImg);
+    inRange(blobImg, maxVal - range, maxVal, maxBlobImg);
+
+    minMaxLoc(cornerImg, &minVal, &maxVal, &minLoc, &maxLoc);
+    // cout << "min val : " << minVal << " Location: " << minLoc << endl;
+    // cout << "max val: " << maxVal << " Location: " << maxLoc << endl;
+
+    cv::Mat minCornerImg;
+    cv::Mat maxCornerImg;
+    inRange(cornerImg, minVal, minVal + range, minCornerImg);
+    inRange(cornerImg, maxVal - range, maxVal, maxCornerImg);
+
+    // cv::Mat sobel = SobelResponse(img);
+
+    cv::Mat minBlobPoints;
+    cv::findNonZero(minBlobImg, minBlobPoints);
+    vector<cv::Point2f> cleanMinBlobPoints = NMS_fast(minBlobPoints);
+
+    cv::Mat maxBlobPoints;
+    cv::findNonZero(maxBlobImg, maxBlobPoints);
+    vector<cv::Point2f> cleanMaxBlobPoints = NMS_fast(maxBlobPoints);
+    // cout << "**************" << endl;
+    // for (auto point : cleanMaxBlobPoints)
+    //     cout << point.x << ", " << point.y << endl;
+    // cout << "**************" << endl;
+
+    cv::Mat minCornerPoints;
+    cv::findNonZero(minCornerImg, minCornerPoints);
+    vector<cv::Point2f> cleanMinCornerPoints = NMS_fast(minCornerPoints);
+
+    cv::Mat maxCornerPoints;
+    cv::findNonZero(maxCornerImg, maxCornerPoints);
+    vector<cv::Point2f> cleanMaxCornerPoints = NMS_fast(maxCornerPoints);
+
+    vector<vector<cv::Point2f>> featurePoints;
+
+    return featurePoints;
+}
